@@ -1,10 +1,11 @@
 import streamlit as st
-from pydub import AudioSegment
 import librosa
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 import os
 import math
+import numpy as np
+import pickle
 
 
 #extract MFCCs
@@ -25,8 +26,10 @@ def extract_mfcc(signal, SAMPLE_RATE):
     expected_num_mfcc_vectors_per_segment = math.ceil(num_sam / hop_length) #round up
     print(expected_num_mfcc_vectors_per_segment)
 
+    st.write("processing Audio")
+
+    data = []
     for s in range(num_segments):
-        data = []
         start_sample = num_sam * s
         finish_sample = start_sample + num_sam
 
@@ -42,6 +45,8 @@ def extract_mfcc(signal, SAMPLE_RATE):
             print("segment:{}".format(s+1))
         else:
             print("wrong length")
+
+    data = np.array(data)
     return data
 
 
@@ -49,28 +54,53 @@ def extract_mfcc(signal, SAMPLE_RATE):
 
 
 
-# st.write("""
+st.write("""
 
-# ## Audio Genre Classification
+## Audio Genre Classification
 
-# Hello, this is a web app for audio genre classification
+Hello, this is a web app for audio genre classification
 
-# """)
+""")
 
-
-
-#getting the file
-#uploaded_file = st.file_uploader("Upload Files", accept_multiple_files=True, type='mp3')
 
 test_file = "Data/fma_small/000/000002.mp3"
 
+with open('data/mapping.pickle', 'rb') as f:
+    mapping = pickle.load(f)
 
-#loading in the audiofile
-SAMPLE_RATE = 22050
-signal, sr = librosa.load(test_file, sr = SAMPLE_RATE)
+#getting the file
+uploaded_file = st.file_uploader("Upload Files", type='.mp3')
 
-data = extract_mfcc(signal, SAMPLE_RATE)
+#checking that we have an uploaded file
+if uploaded_file is not None:
+    #note for later, how might this conflict if there are two people running the same script
+    filepath = 'temp/' + uploaded_file.name
+    with open(filepath, "wb") as f:
+        f.write(uploaded_file.getbuffer())
 
+    #display the audio file
+    st.audio(filepath, format='audio/mp3')
 
-model = load_model('models/cnn_model_32.h5')
+    #loading in the audiofile
+    SAMPLE_RATE = 22050
+    signal, sr = librosa.load(filepath, sr = SAMPLE_RATE)
 
+    data = extract_mfcc(signal, SAMPLE_RATE)
+    #expanding dimension to feed into CNN
+    data_cnn = np.expand_dims(data, axis = -1)
+
+    model = load_model('models/cnn_model_32.h5')
+    predictions = model.predict(data_cnn)
+    #used to calculate how sure we are
+    total_prob = predictions.shape[0]
+    sum_predictions = predictions.sum(axis = 0)
+    predicted_indicies = np.argsort(sum_predictions)
+
+    print(sum_predictions, predicted_indicies, mapping)
+        
+    #Really Messy Print statement that tells us the prediction certainties
+    st.write("The first prediction is: {} with a {}% certainty , the second guess is: {} with a {}% certainty"
+    .format(mapping[predicted_indicies[-1]], round((sum_predictions[predicted_indicies[-1]] / total_prob) * 100, 2),
+      mapping[predicted_indicies[-2]], round((sum_predictions[predicted_indicies[-2]] / total_prob) * 100, 2)))
+
+    os.remove(filepath)
