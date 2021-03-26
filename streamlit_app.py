@@ -84,7 +84,6 @@ if uploaded_file is not None:
     #loading in the audiofile
     SAMPLE_RATE = 22050
     signal, sr = librosa.load(filepath, sr = SAMPLE_RATE)
-    signal_test, sr_test = librosa.load(uploaded_file, sr = SAMPLE_RATE)
 
     data = extract_mfcc(signal, SAMPLE_RATE)
     #expanding dimension to feed into CNN
