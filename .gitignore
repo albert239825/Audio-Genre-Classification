@@ -2,4 +2,7 @@ data
 graphs
 temp/*
 test.py
-
+.vscode
+.ipynb_checkpoints
+wget-log
+__pycache__
