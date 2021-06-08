@@ -72,35 +72,35 @@ with open('data/mapping.pickle', 'rb') as f:
 uploaded_file = st.file_uploader("Upload Files", type='.mp3')
 
 #checking that we have an uploaded file
-if uploaded_file is not None:
-    #note for later, how might this conflict if there are two people running the same script
-    filepath = 'temp/' + uploaded_file.name
-    with open(filepath, "wb") as f:
-        f.write(uploaded_file.getbuffer())
+# if uploaded_file is not None:
+#     #note for later, how might this conflict if there are two people running the same script
+#     filepath = 'temp/' + uploaded_file.name
+#     with open(filepath, "wb") as f:
+#         f.write(uploaded_file.getbuffer())
 
-    #display the audio file
-    st.audio(filepath, format='audio/mp3')
+#     #display the audio file
+#     st.audio(filepath, format='audio/mp3')
 
-    #loading in the audiofile
-    SAMPLE_RATE = 22050
-    signal, sr = librosa.load(filepath, sr = SAMPLE_RATE)
+#     #loading in the audiofile
+#     SAMPLE_RATE = 22050
+#     signal, sr = librosa.load(filepath, sr = SAMPLE_RATE)
 
-    data = extract_mfcc(signal, SAMPLE_RATE)
-    #expanding dimension to feed into CNN
-    data_cnn = np.expand_dims(data, axis = -1)
+#     data = extract_mfcc(signal, SAMPLE_RATE)
+#     #expanding dimension to feed into CNN
+#     data_cnn = np.expand_dims(data, axis = -1)
 
-    model = load_model('models/cnn_model_32.h5')
-    predictions = model.predict(data_cnn)
-    #used to calculate how sure we are
-    total_prob = predictions.shape[0]
-    sum_predictions = predictions.sum(axis = 0)
-    predicted_indicies = np.argsort(sum_predictions)
+#     model = load_model('models/cnn_model_32.h5')
+#     predictions = model.predict(data_cnn)
+#     #used to calculate how sure we are
+#     total_prob = predictions.shape[0]
+#     sum_predictions = predictions.sum(axis = 0)
+#     predicted_indicies = np.argsort(sum_predictions)
 
-    print(sum_predictions, predicted_indicies, mapping)
+#     print(sum_predictions, predicted_indicies, mapping)
         
-    #Really Messy Print statement that tells us the prediction certainties
-    st.write("The first prediction is: {} with a {}% certainty , the second guess is: {} with a {}% certainty"
-    .format(mapping[predicted_indicies[-1]], round((sum_predictions[predicted_indicies[-1]] / total_prob) * 100, 2),
-      mapping[predicted_indicies[-2]], round((sum_predictions[predicted_indicies[-2]] / total_prob) * 100, 2)))
+#     #Really Messy Print statement that tells us the prediction certainties
+#     st.write("The first prediction is: {} with a {}% certainty , the second guess is: {} with a {}% certainty"
+#     .format(mapping[predicted_indicies[-1]], round((sum_predictions[predicted_indicies[-1]] / total_prob) * 100, 2),
+#       mapping[predicted_indicies[-2]], round((sum_predictions[predicted_indicies[-2]] / total_prob) * 100, 2)))
 
-    os.remove(filepath)
+#     os.remove(filepath)
