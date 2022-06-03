@@ -1,4 +1,3 @@
-import streamlit as st
 import librosa
 import tensorflow as tf
 from tensorflow.keras.models import load_model
@@ -6,6 +5,8 @@ import os
 import math
 import numpy as np
 import pickle
+import streamlit as st
+import pandas as pd
 
 
 # extract MFCCs
@@ -16,26 +17,27 @@ def extract_mfcc(signal, SAMPLE_RATE):
     hop_length = 512
 
     # divide the song into 3 second segments so that we can feed into the model. Since it was trained on (129,32) data
-    # Solving this my having fixed segment length. At most missing 3 seconds of the total song
+    # Solving this my having fixed segment length. At most missing 3 seconds
+    # of the total song
     len_segment = (2.98 * SAMPLE_RATE)
     num_segments = (int)(len(signal) / len_segment)
     print("len_segment: {}, num_segments {}, cropped signal Length: {}, Original signal length: {}".format(
-        len_segment, num_segments, (len_segment*num_segments), len(signal)))
-    singal_cropped = signal[: (int)(len_segment*num_segments)]
+        len_segment, num_segments, (len_segment * num_segments), len(signal)))
+    singal_cropped = signal[: (int)(len_segment * num_segments)]
     num_sam = int(len(singal_cropped) / num_segments)
 
     expected_num_mfcc_vectors_per_segment = math.ceil(
         num_sam / hop_length)  # round up
     print(expected_num_mfcc_vectors_per_segment)
 
-    st.write("processing Audio")
+    st.write("Processing Audio")
 
     data = []
     for s in range(num_segments):
         start_sample = num_sam * s
         finish_sample = start_sample + num_sam
 
-        mfcc = librosa.feature.mfcc(signal[start_sample:finish_sample],
+        mfcc = librosa.feature.mfcc(y=signal[start_sample:finish_sample],
                                     sr=sr,
                                     n_fft=n_fft,
                                     n_mfcc=n_mfcc,
@@ -44,13 +46,25 @@ def extract_mfcc(signal, SAMPLE_RATE):
 
         if len(mfcc) == expected_num_mfcc_vectors_per_segment:
             data.append(mfcc.tolist())
-            print("segment:{}".format(s+1))
+            print("segment:{}".format(s + 1))
         else:
             print("wrong length")
 
     data = np.array(data)
     return data
 
+
+def create_aggregate_data(predictions):
+    sum = np.zeros(shape=(predictions.shape))
+    for i in range(0, predictions.shape[0]):
+        sum[i] = predictions[0:i].sum(axis=0) / i
+        chart_data_aggregate = pd.DataFrame(sum, columns=mapping)
+
+    return chart_data_aggregate
+
+
+# Setting it so that Streamlit uses the whole page
+st.set_page_config(layout="wide")
 
 st.write("""
 
@@ -71,7 +85,8 @@ uploaded_file = st.file_uploader("Upload Files", type='.mp3')
 
 # checking that we have an uploaded file
 if uploaded_file is not None:
-    # note for later, how might this conflict if there are two people running the same script
+    # note for later, how might this conflict if there are two people running
+    # the same script
     filepath = 'temp/' + uploaded_file.name
     with open(filepath, "wb") as f:
         f.write(uploaded_file.getbuffer())
@@ -79,7 +94,8 @@ if uploaded_file is not None:
     # display the audio file
     st.audio(filepath, format='audio/mp3')
 
-    # loading in the audiofile
+    # loading in the audio file
+    st.write("Starting to load audio file")
     SAMPLE_RATE = 22050
     signal, sr = librosa.load(filepath, sr=SAMPLE_RATE)
 
@@ -87,18 +103,26 @@ if uploaded_file is not None:
     # expanding dimension to feed into CNN
     data_cnn = np.expand_dims(data, axis=-1)
 
-    model = load_model('models/cnn_model_32.h5')
+    model = tf.keras.models.load_model('models/cnn_model_32.h5')
     predictions = model.predict(data_cnn)
+
     # used to calculate how sure we are
     total_prob = predictions.shape[0]
     sum_predictions = predictions.sum(axis=0)
-    predicted_indicies = np.argsort(sum_predictions)
+    predicted_indices = np.argsort(sum_predictions)
 
-    print(sum_predictions, predicted_indicies, mapping)
+    print(sum_predictions, predicted_indices, mapping)
 
     # Really Messy Print statement that tells us the prediction certainties
     st.write("The first prediction is: {} with a {}% certainty , the second guess is: {} with a {}% certainty"
-             .format(mapping[predicted_indicies[-1]], round((sum_predictions[predicted_indicies[-1]] / total_prob) * 100, 2),
-                     mapping[predicted_indicies[-2]], round((sum_predictions[predicted_indicies[-2]] / total_prob) * 100, 2)))
+             .format(mapping[predicted_indices[-1]], round((sum_predictions[predicted_indices[-1]] / total_prob) * 100, 2),
+                     mapping[predicted_indices[-2]], round((sum_predictions[predicted_indices[-2]] / total_prob) * 100, 2)))
+
+    # Create a plot that shows the probability over time
+    chart_data = pd.DataFrame(data=predictions, columns=mapping)
+    st.line_chart(chart_data)
+
+    chart_data_aggregate = create_aggregate_data(predictions)
+    st.line_chart(chart_data_aggregate)
 
     os.remove(filepath)
