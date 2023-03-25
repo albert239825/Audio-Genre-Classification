@@ -1,6 +1,6 @@
 streamlit==1.9.2
 librosa==0.9.1
-tensorflow==2.6.5
+tensorflow==2.11.1
 numpy==1.19.5
 tqdm==4.64.0
 matplotlib==3.5.2
